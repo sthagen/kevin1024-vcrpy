@@ -7,6 +7,14 @@ For a full list of triaged issues, bugs and PRs and what release they are target
 
 All help in providing PRs to close out bug issues is appreciated. Even if that is providing a repo that fully replicates issues. We have very generous contributors that have added these to bug issues which meant another contributor picked up the bug and closed it out.
 
+-  8.1.0
+    - Enable brotli decompression if available (via ``brotli``, ``brotlipy`` or ``brotlicffi``) (#620) - thanks @immerrr
+    - Fix aiohttp allowing both ``data`` and ``json`` arguments when one is None (#624) - thanks @leorochael
+    - Fix usage of io-like interface with VCR.py (#906) - thanks @tito and @kevdevg
+    - Migrate to declarative Python package config (#767) - thanks @deronnax
+    - Various linting fixes - thanks @jairhenrique
+    - CI: bump actions/checkout from 5 to 6 (#955)
+
 -  8.0.0
     - BREAKING: Drop support for Python 3.9 (major version bump) - thanks @jairhenrique
     - BREAKING: Drop support for urllib3 < 2 - fixes CVE warnings from urllib3 1.x (#926, #880) - thanks @jairhenrique
