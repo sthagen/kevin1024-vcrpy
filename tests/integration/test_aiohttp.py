@@ -144,10 +144,10 @@ POST_DATA = {"key1": "value1", "key2": "value2"}
 @pytest.mark.parametrize(
     "kwargs",
     [
-        dict(data=POST_DATA),
-        dict(json=POST_DATA),
-        dict(data=POST_DATA, json=None),
-        dict(data=None, json=POST_DATA),
+        {"data": POST_DATA},
+        {"json": POST_DATA},
+        {"data": POST_DATA, "json": None},
+        {"data": None, "json": POST_DATA},
     ],
 )
 def test_post(tmpdir, kwargs, caplog, httpbin):
@@ -176,10 +176,11 @@ def test_post(tmpdir, kwargs, caplog, httpbin):
 @pytest.mark.online
 def test_post_data_plus_json_error(tmpdir, httpbin):
     url = httpbin.url + "/post"
-    with vcr.use_cassette(str(tmpdir.join("post.yaml"))) as cassette, pytest.raises(
-        ValueError, match="data and json parameters can not be used at the same time"
-    ):
-        post(url, data=POST_DATA, json=POST_DATA)
+    with vcr.use_cassette(str(tmpdir.join("post.yaml"))) as cassette:
+        with pytest.raises(
+            ValueError, match="data and json parameters can not be used at the same time"
+        ):
+            post(url, data=POST_DATA, json=POST_DATA)
     assert cassette.requests == []
 
 
