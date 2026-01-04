@@ -308,18 +308,18 @@ class CassettePatcherBuilder:
         try:
             import httpcore
         except ImportError:  # pragma: no cover
-            return
+            pass
         else:
             from .stubs.httpcore_stubs import vcr_handle_async_request, vcr_handle_request
+
+            new_handle_request = vcr_handle_request(self._cassette, _HttpcoreConnectionPool_handle_request)
+            yield httpcore.ConnectionPool, "handle_request", new_handle_request
 
             new_handle_async_request = vcr_handle_async_request(
                 self._cassette,
                 _HttpcoreAsyncConnectionPool_handle_async_request,
             )
             yield httpcore.AsyncConnectionPool, "handle_async_request", new_handle_async_request
-
-            new_handle_request = vcr_handle_request(self._cassette, _HttpcoreConnectionPool_handle_request)
-            yield httpcore.ConnectionPool, "handle_request", new_handle_request
 
     def _urllib3_patchers(self, cpool, conn, stubs):
         http_connection_remover = ConnectionRemover(
@@ -446,6 +446,22 @@ def reset_patchers():
         pass
     else:
         yield mock.patch.object(curl.CurlAsyncHTTPClient, "fetch_impl", _CurlAsyncHTTPClient_fetch_impl)
+
+    try:
+        import httpcore
+    except ImportError:  # pragma: no cover
+        pass
+    else:
+        yield mock.patch.object(
+            httpcore.ConnectionPool,
+            "handle_request",
+            _HttpcoreConnectionPool_handle_request,
+        )
+        yield mock.patch.object(
+            httpcore.AsyncConnectionPool,
+            "handle_async_request",
+            _HttpcoreAsyncConnectionPool_handle_async_request,
+        )
 
 
 @contextlib.contextmanager

@@ -1,8 +1,6 @@
-import asyncio
 import functools
 import logging
 from collections import defaultdict
-from collections.abc import AsyncIterable, Iterable
 
 from httpcore import Response
 from httpcore._models import ByteStream
@@ -13,18 +11,6 @@ from vcr.request import Request as VcrRequest
 from vcr.serializers.compat import convert_body_to_bytes
 
 _logger = logging.getLogger(__name__)
-
-
-async def _convert_byte_stream(stream):
-    if isinstance(stream, Iterable):
-        return list(stream)
-
-    if isinstance(stream, AsyncIterable):
-        return [part async for part in stream]
-
-    raise TypeError(
-        f"_convert_byte_stream: stream must be Iterable or AsyncIterable, got {type(stream).__name__}",
-    )
 
 
 def _serialize_headers(real_response):
@@ -41,21 +27,17 @@ def _serialize_headers(real_response):
     return dict(headers)
 
 
-async def _serialize_response(real_response):
+def _serialize_response(real_response, real_response_content):
     # The reason_phrase may not exist
     try:
         reason_phrase = real_response.extensions["reason_phrase"].decode("ascii")
     except KeyError:
         reason_phrase = None
 
-    # Reading the response stream consumes the iterator, so we need to restore it afterwards
-    content = b"".join(await _convert_byte_stream(real_response.stream))
-    real_response.stream = ByteStream(content)
-
     return {
         "status": {"code": real_response.status, "message": reason_phrase},
         "headers": _serialize_headers(real_response),
-        "body": {"string": content},
+        "body": {"string": real_response_content},
     }
 
 
@@ -99,11 +81,7 @@ def _deserialize_response(vcr_response):
     )
 
 
-async def _make_vcr_request(real_request):
-    # Reading the request stream consumes the iterator, so we need to restore it afterwards
-    body = b"".join(await _convert_byte_stream(real_request.stream))
-    real_request.stream = ByteStream(body)
-
+def _make_vcr_request(real_request, real_request_body):
     uri = bytes(real_request.url).decode("ascii")
 
     # As per HTTPX: If there are multiple headers with the same key, then we concatenate them with commas
@@ -114,28 +92,25 @@ async def _make_vcr_request(real_request):
 
     headers = {name: ", ".join(values) for name, values in headers.items()}
 
-    return VcrRequest(real_request.method.decode("ascii"), uri, body, headers)
+    return VcrRequest(real_request.method.decode("ascii"), uri, real_request_body, headers)
 
 
-async def _vcr_request(cassette, real_request):
-    vcr_request = await _make_vcr_request(real_request)
+def _vcr_request(cassette, real_request, real_request_body):
+    vcr_request = _make_vcr_request(real_request, real_request_body)
 
     if cassette.can_play_response_for(vcr_request):
         return vcr_request, _play_responses(cassette, vcr_request)
 
     if cassette.write_protected and cassette.filter_request(vcr_request):
-        raise CannotOverwriteExistingCassetteException(
-            cassette=cassette,
-            failed_request=vcr_request,
-        )
+        raise CannotOverwriteExistingCassetteException(cassette=cassette, failed_request=vcr_request)
 
     _logger.info("%s not in cassette, sending to real server", vcr_request)
 
     return vcr_request, None
 
 
-async def _record_responses(cassette, vcr_request, real_response):
-    cassette.append(vcr_request, await _serialize_response(real_response))
+def _record_responses(cassette, vcr_request, real_response, real_response_content):
+    cassette.append(vcr_request, _serialize_response(real_response, real_response_content))
 
 
 def _play_responses(cassette, vcr_request):
@@ -145,19 +120,23 @@ def _play_responses(cassette, vcr_request):
     return real_response
 
 
-async def _vcr_handle_async_request(
-    cassette,
-    real_handle_async_request,
-    self,
-    real_request,
-):
-    vcr_request, vcr_response = await _vcr_request(cassette, real_request)
+async def _vcr_handle_async_request(cassette, real_handle_async_request, self, real_request):
+    # Reading the request stream consumes the iterator, so we need to restore it afterwards
+    real_request_body = b"".join([part async for part in real_request.stream])
+    real_request.stream = ByteStream(real_request_body)
+
+    vcr_request, vcr_response = _vcr_request(cassette, real_request, real_request_body)
 
     if vcr_response:
         return vcr_response
 
     real_response = await real_handle_async_request(self, real_request)
-    await _record_responses(cassette, vcr_request, real_response)
+
+    # Reading the response stream consumes the iterator, so we need to restore it afterwards
+    real_response_content = b"".join([part async for part in real_response.stream])
+    real_response.stream = ByteStream(real_response_content)
+
+    _record_responses(cassette, vcr_request, real_response, real_response_content)
 
     return real_response
 
@@ -165,44 +144,28 @@ async def _vcr_handle_async_request(
 def vcr_handle_async_request(cassette, real_handle_async_request):
     @functools.wraps(real_handle_async_request)
     def _inner_handle_async_request(self, real_request):
-        return _vcr_handle_async_request(
-            cassette,
-            real_handle_async_request,
-            self,
-            real_request,
-        )
+        return _vcr_handle_async_request(cassette, real_handle_async_request, self, real_request)
 
     return _inner_handle_async_request
 
 
-def _run_async_function(sync_func, *args, **kwargs):
-    """
-    Safely run an asynchronous function from a synchronous context.
-    Handles both cases:
-    - An event loop is already running.
-    - No event loop exists yet.
-    """
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(sync_func(*args, **kwargs))
-    else:
-        # If inside a running loop, create a task and wait for it
-        return asyncio.ensure_future(sync_func(*args, **kwargs))
-
-
 def _vcr_handle_request(cassette, real_handle_request, self, real_request):
-    vcr_request, vcr_response = _run_async_function(
-        _vcr_request,
-        cassette,
-        real_request,
-    )
+    # Reading the request stream consumes the iterator, so we need to restore it afterwards
+    real_request_body = b"".join(real_request.stream)
+    real_request.stream = ByteStream(real_request_body)
+
+    vcr_request, vcr_response = _vcr_request(cassette, real_request, real_request_body)
 
     if vcr_response:
         return vcr_response
 
     real_response = real_handle_request(self, real_request)
-    _run_async_function(_record_responses, cassette, vcr_request, real_response)
+
+    # Reading the response stream consumes the iterator, so we need to restore it afterwards
+    real_response_content = b"".join(real_response.stream)
+    real_response.stream = ByteStream(real_response_content)
+
+    _record_responses(cassette, vcr_request, real_response, real_response_content)
 
     return real_response
 
