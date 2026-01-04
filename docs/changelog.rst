@@ -7,6 +7,10 @@ For a full list of triaged issues, bugs and PRs and what release they are target
 
 All help in providing PRs to close out bug issues is appreciated. Even if that is providing a repo that fully replicates issues. We have very generous contributors that have added these to bug issues which meant another contributor picked up the bug and closed it out.
 
+-  8.1.1
+    - Fix sync requests in async contexts for HTTPX (#965) - thanks @seowalex
+    - CI: bump peter-evans/create-pull-request from 7 to 8 (#969)
+
 -  8.1.0
     - Enable brotli decompression if available (via ``brotli``, ``brotlipy`` or ``brotlicffi``) (#620) - thanks @immerrr
     - Fix aiohttp allowing both ``data`` and ``json`` arguments when one is None (#624) - thanks @leorochael
