@@ -3,10 +3,12 @@ Changelog
 
 All help in providing PRs to close out bug issues is appreciated. Even if that is providing a repo that fully replicates issues. We have very generous contributors that have added these to bug issues which meant another contributor picked up the bug and closed it out.
 
--  Unreleased
+-  8.3.0
+    - Add support for niquests (#980) - thanks @ionelmc
     - Refuse to record a cassette containing a Python object the safe YAML loader could not read back, so recording fails fast instead of producing a cassette that breaks on replay (#1007, #1009) - thanks @Polandia94
     - Add ``vcr.serializers.yamlserializer.with_custom_tags`` to build a YAML serializer supporting custom Python object tags on both record and replay, registered per VCR instance via ``register_serializer`` (#1007, #1009) - thanks @Polandia94
     - Clearer error when a cassette contains an unsupported YAML tag, and remove the stale git.io migration link (#1007, #1008) - thanks @gaoflow
+    - Fix stale keep-alive connection reuse across cassettes; unpin werkzeug (#1001)
 
 -  8.2.1
     - SECURITY: Load cassettes with a safe YAML loader, preventing arbitrary code execution when a cassette from an untrusted source is loaded (GHSA-rpj2-4hq8-938g) - thanks @RamiAltai and @EQSTLab
