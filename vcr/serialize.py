@@ -42,11 +42,11 @@ def deserialize(cassette_string, serializer):
         # support (e.g. a custom Python object type recorded by an older VCR
         # version, or a non-standard type in the request/response body).
         # Raise a descriptive error rather than the misleading "older version"
-        # message; still mention the migration script for old cassette cases.
+        # message. The migration script can't help here: it uses the same safe
+        # loader and would crash on the same tag.
         raise ValueError(
             f"There was a problem loading the cassette: {e}. "
-            "If this is an old cassette, delete it and re-record, or "
-            "run the migration script.",
+            "If this is an old cassette, delete it and re-record.",
         ) from e
     if _looks_like_an_old_cassette(data):
         _warn_about_old_cassette_format()
