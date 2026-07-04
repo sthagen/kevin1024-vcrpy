@@ -92,8 +92,14 @@ class _CassetteDumper(_BaseDumper):
                 "Cassette not saved: the request or response contains a Python "
                 f"object that the safe YAML loader would refuse to load back ({tag!r}). "
                 "Keep custom Python objects out of recorded requests/responses, or "
-                "register a serializer that supports this tag via "
-                "vcr.serializers.yamlserializer.with_custom_tags(...).",
+                "register a serializer that supports this object on your VCR "
+                "instance:\n\n"
+                "    from vcr.serializers import yamlserializer\n\n"
+                '    my_vcr.register_serializer("yaml", yamlserializer.with_custom_tags({\n'
+                f"        {tag!r}: my_constructor,  # def my_constructor(loader, node): ...\n"
+                "    }))\n\n"
+                "See https://vcrpy.readthedocs.io/en/latest/advanced.html"
+                "#cassettes-containing-custom-python-objects",
             )
         return node
 
